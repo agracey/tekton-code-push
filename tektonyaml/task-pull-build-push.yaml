@@ -1,0 +1,87 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: pull-build-push
+spec:
+  params:
+  - name: namespace
+    description: The namespace
+    type: string
+  - name: appname
+    description: The appname
+    type: string
+  - name: filename
+    description: The file to pull
+    type: string
+  - name: s3-key
+    description: S3 Access Key to log in with
+    type: string
+    default: AKIAIOSFODNN7EXAMPLE
+  - name: s3-secret
+    description: S3 Secret Key to log in with
+    type: string
+    default: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+  - name: s3-bucket
+    description: The S3 bucket that holds the blobstore
+    type: string
+    default: code
+  - name: s3-host
+    description: The S3 host that holds the blobstore
+    type: string
+    default: "192.168.1.11"
+  - name: s3-port
+    description: The S3 host that holds the blobstore
+    type: string
+    default: "9000"
+  - name: s3-proto
+    description: The S3 host that holds the blobstore
+    type: string
+    default: http
+  - name: imageName
+    description: The name of the application
+    type: string
+  results:
+  - name: manifest
+    description: Manifest file
+     
+  steps:
+  - name: pull-from-bucket
+    image: minio/mc:RELEASE.2020-09-03T00-08-28Z
+    env:
+    - name: "MC_HOST_minio"
+      value: "$(params.s3-proto)://$(params.s3-key):$(params.s3-secret)@$(params.s3-host):$(params.s3-port)"
+    command: ["/bin/sh", "-c"]
+    args:
+      - mc cp minio/$(params.s3-bucket)/$(params.namespace)/$(params.appname)/code.tgz .
+
+  - name: untar
+    image: bash:5
+    command: ["bash", "-c"]
+    args:
+      - tar -xzf code.tgz
+
+  - name: read-manifest
+    image: bash:5
+    command: ["bash", "-c"]
+    args:
+      - cat manifest.yml > $(results.manifest.path)
+
+  - name: build-and-push
+    image: gcr.io/kaniko-project/executor:v0.17.1
+    env:
+    - name: "DOCKER_CONFIG"
+      value: "/tekton/home/.docker"
+    command:
+    - /kaniko/executor
+    args:
+    - --destination=$(params.imageName)
+    securityContext:
+      runAsUser: 0
+    volumeMounts:
+      - name: regcred-volume
+        mountPath: /tekton/home/.docker
+
+  volumes:
+  - name: regcred-volume
+    secret:
+      secretName: registry-creds

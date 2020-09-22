@@ -1,0 +1,115 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: deploy-app
+spec:
+  params:
+  - name: namespace
+    description: The namespace
+    type: string
+  - name: appName
+    description: The name of the application
+    type: string
+  - name: imageName
+    description: The name of the application
+    type: string
+  - name: manifest
+    description: The contents of manifest.yml
+    type: string
+  - name: routeHost
+    description: The Host for the ingress
+    type: string
+  - name: routePath
+    description: The Path for the ingress
+    type: string
+    default: /
+     
+  steps:
+  - name: create-ns
+    image: atgracey/kubectl:latest
+    command: ["bash", "-c"]
+    args:
+      - /app/kubectl create ns $(params.namespace) --dry-run=client -o yaml | /app/kubectl apply -f -
+  - name: gen-yaml
+    image: atgracey/yq:latest
+    command: ["bash", "-c"]
+    args: 
+      - ' /app/yq --help' 
+  - name: apply-yaml-deploy
+    image: atgracey/kubectl:latest
+    command: ["bash", "-c"]
+    args: 
+    - echo $FILE | /app/kubectl apply -f -
+    env:
+    - name: FILE
+      value: '{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"$(params.appName)-deployment","namespace":"$(params.namespace)","labels":{"app":"$(params.appName)"}},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"$(params.appName)"}},"template":{"metadata":{"labels":{"app":"$(params.appName)"}},"spec":{"containers":[{"name":"$(params.appName)","image":"$(params.imageName)","ports":[{"containerPort":8080}]}]}}}}'
+
+  - name: apply-yaml-service
+    image: atgracey/kubectl:latest
+    command: ["bash", "-c"]
+    args: 
+    - echo $FILE | /app/kubectl apply -f -
+    env:
+    - name: FILE
+      value: '
+{
+    "apiVersion": "v1",
+    "kind": "Service",
+    "metadata": {
+        "name": "$(params.appName)-service",
+        "namespace": "$(params.namespace)"
+    },
+    "spec": {
+        "selector": {
+            "app": "$(params.appName)"
+        },
+        "ports": [
+            {
+                "protocol": "TCP",
+                "port": 8080,
+                "targetPort": 8080
+            }
+        ]
+    }
+}
+'
+
+  - name: apply-yaml-ingress
+    image: atgracey/kubectl:latest
+    command: ["bash", "-c"]
+    args: 
+    - echo $FILE | /app/kubectl apply -f -
+    env:
+    - name: FILE
+      value: '
+{
+    "apiVersion": "networking.k8s.io/v1beta1",
+    "kind": "Ingress",
+    "metadata": {
+        "name": "$(params.appName)-ingress",
+        "namespace": "$(params.namespace)",
+        "annotations": {
+            "nginx.ingress.kubernetes.io/rewrite-target": "/"
+        }
+    },
+    "spec": {
+        "rules": [
+            {
+                "host": "$(params.routeHost)",
+                "http": {
+                    "paths": [
+                        {
+                            "path": "$(params.routePath)",
+                            "pathType": "Prefix",
+                            "backend": {
+                                "serviceName": "$(params.appName)-service",
+                                "servicePort": 8080
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}
+'

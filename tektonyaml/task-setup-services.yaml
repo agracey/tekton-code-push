@@ -1,0 +1,19 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: setup-required-svcs
+spec:
+  params:
+  - name: namespace
+    description: The namespace
+    type: string
+  results:
+    - name: service-bindings
+      description: VCAP-SERVICES
+     
+  steps:
+  - name: read-manifest-add-services
+    image: bash:5
+    command: ["bash", "-c"]
+    args:
+      - cat /tekton/inputs/manifest

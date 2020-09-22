@@ -1,0 +1,119 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: k8s-code-push-template
+spec:
+  params:
+  - name: appname
+    description: The app being deployed
+  - name: namespace
+    description: The namespace to install to
+  - name: filename
+    description: The filename to pull from S3/Minio
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: k8s-code-push-pipeline-run-
+    spec:
+      serviceAccountName: k8s-code-push-sa
+      pipelineRef:
+        name: k8s-code-push-pipeline
+      params:
+      - name: appname
+        value: $(tt.params.appname)
+      - name: namespace
+        value: $(tt.params.namespace)
+      - name: filename
+        value: $(tt.params.filename)
+
+---
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: k8s-code-push-trigger-binding
+spec:
+  params:
+  - name: namespace
+    value: $(body.namespace)
+  - name: appname
+    value: $(body.appname)
+  - name: filename
+    value: $(body.filename)
+
+---
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: k8s-code-push-listener
+spec:
+  serviceAccountName: k8s-code-push-sa
+  triggers:
+    - name: k8s-code-push-listener
+      bindings:
+        - ref: k8s-code-push-trigger-binding
+      template:
+        name: k8s-code-push-template
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8s-code-push-sa
+secrets:
+  - name: registry-creds
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tekton-triggers-k8s-code-push-binding
+subjects:
+  - kind: ServiceAccount
+    name: k8s-code-push-sa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tekton-triggers-k8s-code-push-minimal
+
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: tekton-triggers-k8s-code-push-minimal
+rules:
+  # Permissions for every EventListener deployment to function
+  - apiGroups: ["triggers.tekton.dev"]
+    resources: ["eventlisteners", "triggerbindings", "triggertemplates"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    # secrets are only needed for Github/Gitlab interceptors, serviceaccounts only for per trigger authorization
+    resources: ["configmaps", "secrets", "serviceaccounts"]
+    verbs: ["get", "list", "watch"]
+  # Permissions to create resources in associated TriggerTemplates
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns", "pipelineresources", "taskruns"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tekton-pipeline-k8s-code-push-deploy-binding
+subjects:
+  - kind: ServiceAccount
+    name: k8s-code-push-sa
+    namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+
+# ---
+# kind: Role
+# apiVersion: rbac.authorization.k8s.io/v1
+# metadata:
+#   name: tekton-pipeline-k8s-code-push-deploy
+# rules:
+#   - apiGroups: [""]
+#     resources: ["namespace", "triggerbindings", "triggertemplates"]
+#     verbs: ["create"]

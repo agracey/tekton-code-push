@@ -1,0 +1,54 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: k8s-code-push-pipeline
+spec:
+  params:
+  - name: appname
+    description: appname
+    default: test
+    type: string
+  - name: namespace
+    description: The namespace
+    default: testns
+    type: string
+  - name: filename
+    description: filename
+    default: code.tgz
+    type: string
+  - name: imagePrefix
+    description: Preprended to image name
+    default: atgracey
+    type: string
+  tasks:
+  - name: pull-build-push
+    taskRef:
+      name: pull-build-push
+    params:
+    - name: appname
+      value: $(params.appname)
+    - name: namespace
+      value: $(params.namespace)
+    - name: filename
+      value: $(params.filename)
+    - name: imageName
+      value: $(params.imagePrefix)/$(params.namespace)-$(params.appname):latest
+    # resources:
+    #   outputs:
+    #   - name: manifest
+        
+        
+  - name: deploy
+    taskRef: 
+      name: deploy-app
+    params:
+    - name: namespace
+      value: $(params.namespace)
+    - name: appName
+      value: $(params.appname)
+    - name: manifest
+      value: $(tasks.pull-build-push.results.manifest)
+    - name: imageName
+      value: $(params.imagePrefix)/$(params.namespace)-$(params.appname):latest
+    - name: routeHost
+      value: $(params.appname).192.168.1.10.xip.io
