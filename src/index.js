@@ -101,13 +101,20 @@ app.get('/build/:build_id/log', (req, res)=>{
   })
 
   ws.on('close',()=>{
-    //TODO: write deployment info for client to tail?
-    res.send('Logs ending')
+      res.end('Logs ending')
   })
 
   ws.on('error',(error)=>{
     console.warn(error)
-    res.send('Logs Error')
+    res.end('Logs Error')
+  })
+  //TODO: end cleanly. How to know when? Maybe check CRDs?
+  // Should this all push to smarter client?
+  req.socket.on("error", function() {
+    ws.close()
+  })
+  res.socket.on("error", function() {
+    ws.close()
   })
 })
 
