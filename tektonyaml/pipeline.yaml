@@ -32,7 +32,7 @@ spec:
     - name: filename
       value: $(params.filename)
     - name: imageName
-      value: $(params.imagePrefix)/$(params.namespace)-$(params.appname):latest
+      value: $(params.imagePrefix)/$(params.namespace)-$(params.appname):$(context.pipelineRun.uid)
     # resources:
     #   outputs:
     #   - name: manifest
@@ -49,6 +49,6 @@ spec:
     - name: manifest
       value: $(tasks.pull-build-push.results.manifest)
     - name: imageName
-      value: $(params.imagePrefix)/$(params.namespace)-$(params.appname):latest
+      value: $(params.imagePrefix)/$(params.namespace)-$(params.appname):$(context.pipelineRun.uid)
     - name: routeHost
       value: $(params.appname).192.168.1.10.xip.io
