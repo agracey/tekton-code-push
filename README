@@ -1,0 +1,31 @@
+# Goal of Project
+
+Developers shouldn't need to know kubectl just to do developement on Kubernetes. 
+They should be able to push their code and have it get built and run by the platform.
+
+# Installation
+
+I don't have a helm chart yet but installation isn't too hard. I'll fully write these out next time I reset my cluster.
+
+- Install an ingress controller if your cluster doesn't already have one
+- Install Minio (or other S3 compatible object store). Doesn't need to be in the cluster
+- Install Tekton 
+- Install Tekton triggers
+- Install Tekton Dashboard
+- Install loki-stack into the loki namespace
+- `kubectl apply -f` all the files in tektonyaml/
+- Create a secret to allow pushing built images `kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml create secret docker-registry registry-creds --docker-server=https://index.docker.io/v1/ --docker-username=<username> --docker-password <password> --docker-email <email>`
+- Edit this secret to change the data key to be from `.dockerconfigjson` to be `config.json` (or duplicate the key)
+- mv upload.sh to someplace in your $PATH
+
+
+# Immediate Next Steps
+
+- Add manifest.yml parsing
+- Add svccat integration
+- Add helm chart
+- Improve logging & add annotation to deployed objects
+- Rewrite upload script into python
+- Refactor node.js code and improve websocket handling
+- Add delete functionality (not sure best way...)
+- Auth/Multitenancy?
