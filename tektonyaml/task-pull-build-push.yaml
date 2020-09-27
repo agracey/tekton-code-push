@@ -43,6 +43,18 @@ spec:
   results:
   - name: manifest
     description: Manifest file
+  - name: routeHost
+    description: Ingress Host
+  - name: routePath
+    description: Ingress Path # TODO: figure out how to merge ingresses for fanout. Maybe name ingress by host and edit with paths inserted?
+  - name: buildpacks
+    description: Buildpacks to use
+  - name: environment
+    description: Environment to run with
+  - name: services
+    description: Services to bind to
+  - name: command
+    description: Command to run
      
   steps:
   - name: pull-from-bucket
@@ -65,7 +77,18 @@ spec:
     command: ["bash", "-c"]
     args:
       - cat manifest.yml > $(results.manifest.path)
-
+  - name: parse-manifest
+    image: atgracey/yq
+    command: ["bash", "-c"]
+    args:
+      - '
+      cat manifest.yml | /app/yq r - ".applications[0].route[0].path" > $(results.routePath.path);
+      cat manifest.yml | /app/yq r - ".applications[0].route[0].host" > $(results.routeHost.path);
+      cat manifest.yml | /app/yq r - ".applications[0].buildpacks | @sh" > $(results.buildpacks.path);
+      cat manifest.yml | /app/yq r - ".applications[0].env" > $(results.environment.path);
+      cat manifest.yml | /app/yq r - ".applications[0].services | @sh" > $(results.services.path);
+      cat manifest.yml | /app/yq r - ".applications[0].command" > $(results.command.path);
+    '
   - name: build-and-push
     image: gcr.io/kaniko-project/executor:v0.17.1
     env:
